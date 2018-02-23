@@ -4,6 +4,52 @@ from gym import spaces, logger
 from gym.utils import seeding
 import numpy as np
 
+from env_plant.settings import *
+from env_plant.items.production import BurnerMiningDrill, StoneFurnace
+
+
+def render_get_coords(location, w, h):
+    l, r, b, t = location[0] - 0.5 * w, location[0] + 0.5 * w, \
+                 location[1] - 0.5 * h, location[1] + 0.5 * h
+    return [(l, b), (l, t), (r, t), (r, b)]
+
+
+class State:
+    def __init__(self):
+        self.iron_ore = 0
+        self.coal_ore = 0
+        self.iron_plates = 0
+
+        self.iron_mines = []
+        self.coal_mines = []
+        self.furnaces = []
+        self.belts = []
+
+        self.set_defaults()
+
+    def set_defaults(self):
+        self.iron_ore = 10
+        self.coal_ore = 10
+
+        ore_mine = BurnerMiningDrill(400, 100)
+        self.iron_mines.append(ore_mine)
+
+        coal_mine = BurnerMiningDrill(100, 100)
+        self.coal_mines.append(coal_mine)
+
+        furnace = StoneFurnace(0.75 * SCREEN_WIDTH, 0.5 * SREEN_HEIGHT)
+        self.furnaces.append(furnace)
+
+    def __str__(self):
+
+        output = 'Resources: '
+        output += 'iron ore {}, '.format(self.iron_ore)
+        output += 'coal ore {}, '.format(self.coal_ore)
+        output += 'iron plates {}. '.format(self.iron_plates)
+
+        return output
+
+
 class SimpleEnv(gym.Env):
     metadata = {
         'render.modes': ['human', 'rgb_array'],
@@ -11,116 +57,100 @@ class SimpleEnv(gym.Env):
     }
 
     def __init__(self):
-        self.gravity = 9.8
-        self.masscart = 1.0
-        self.masspole = 0.1
-        self.total_mass = (self.masspole + self.masscart)
-        self.length = 0.5 # actually half the pole's length
-        self.polemass_length = (self.masspole * self.length)
-        self.force_mag = 10.0
-        self.tau = 0.02  # seconds between state updates
-
-        # Angle at which to fail the episode
-        self.theta_threshold_radians = 12 * 2 * math.pi / 360
-        self.x_threshold = 2.4
-
-        # Angle limit set to 2 * theta_threshold_radians so failing observation is still within bounds
-        high = np.array([
-            self.x_threshold * 2,
-            np.finfo(np.float32).max,
-            self.theta_threshold_radians * 2,
-            np.finfo(np.float32).max])
-
-        self.action_space = spaces.Discrete(2)
-        self.observation_space = spaces.Box(-high, high)
 
         self.seed()
         self.viewer = None
-        self.state = None
-
-        self.steps_beyond_done = None
+        self.state = State()
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self, action):
+    def calculate_reward(self):
+        reward = 0.0
+        reward += self.state.iron_ore * REWARDS['iron_ore']
+        reward += self.state.coal_ore * REWARDS['coal_ore']
+        reward += self.state.iron_plates * REWARDS['iron_plate']
+        return reward
 
-        assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
+    def step(self, action):
+        """
+        Action is a triple of info for one piece of transport belt:
+        (x, y, orientation)
+
+        :param action:
+        :return:
+        """
+
+        #assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
+
+
+
+
 
         state = self.state
-        x, x_dot, theta, theta_dot = state
-        force = self.force_mag if action==1 else -self.force_mag
-        costheta = math.cos(theta)
-        sintheta = math.sin(theta)
-        temp = (force + self.polemass_length * theta_dot * theta_dot * sintheta) / self.total_mass
-        thetaacc = (self.gravity * sintheta - costheta* temp) / (self.length * (4.0/3.0 - self.masspole * costheta * costheta / self.total_mass))
-        xacc  = temp - self.polemass_length * thetaacc * costheta / self.total_mass
-        x  = x + self.tau * x_dot
-        x_dot = x_dot + self.tau * xacc
-        theta = theta + self.tau * theta_dot
-        theta_dot = theta_dot + self.tau * thetaacc
-        self.state = (x,x_dot,theta,theta_dot)
-        done =  x < -self.x_threshold \
-                or x > self.x_threshold \
-                or theta < -self.theta_threshold_radians \
-                or theta > self.theta_threshold_radians
-        done = bool(done)
 
-        if not done:
-            reward = 1.0
-        elif self.steps_beyond_done is None:
-            # Pole just fell!
-            self.steps_beyond_done = 0
-            reward = 1.0
-        else:
-            if self.steps_beyond_done == 0:
-                logger.warn("You are calling 'step()' even though this environment has already returned done = True. You should always call 'reset()' once you receive 'done = True' -- any further steps are undefined behavior.")
-            self.steps_beyond_done += 1
-            reward = 0.0
+        for furnace in state.furnaces:
+            furnace.produce_one_iron_plate()
 
-        return np.array(self.state), reward, done, {}
+        return self.state, self.calculate_reward(), False, {}
 
     def reset(self):
-        self.state = self.np_random.uniform(low=-0.05, high=0.05, size=(4,))
-        self.steps_beyond_done = None
-        return np.array(self.state)
+        self.state.set_defaults()
+        return self.state
 
     def render(self, mode='human'):
-        screen_width = 500
-        screen_height = 500
 
-        resource_w, resource_h = 100, 100
-
-        furnace_w, furnace_h = 100, 100
-        furnace_center_x, furnace_center_y = 0.75 * screen_width, 0.5 * screen_height
+        if self.state is None:
+            return None
 
         if self.viewer is None:
             from gym.envs.classic_control import rendering
-            self.viewer = rendering.Viewer(screen_width, screen_height)
+            self.viewer = rendering.Viewer(SCREEN_WIDTH, SREEN_HEIGHT)
 
             # create iron resources
-            l,r,b,t = 0, resource_w, screen_height-resource_h, screen_height
+            l,r,b,t = 0, OBJECT_W, SREEN_HEIGHT - OBJECT_H, SREEN_HEIGHT
             iron_resource = rendering.FilledPolygon([(l,b), (l,t), (r,t), (r,b)])
             iron_resource.set_color(1.000, 0.549, 0.000) #orange
             self.viewer.add_geom(iron_resource)
 
+            for om in self.state.iron_mines:
+                om_p = rendering.FilledPolygon(render_get_coords(om.location, OBJECT_W, OBJECT_H))
+                om_p.set_color(0.184, 0.310, 0.310)  # black gray
+                self.viewer.add_geom(om_p)
+
             # create coal resources
-            l,r,b,t = 0, resource_w, 0, resource_h
+            l,r,b,t = 0, OBJECT_W, 0, OBJECT_H
             coal_resource = rendering.FilledPolygon([(l,b), (l,t), (r,t), (r,b)])
             coal_resource.set_color(0.412, 0.412, 0.412) #darkgray
             self.viewer.add_geom(coal_resource)
 
             # create stone furnace
-            l, r, b, t = furnace_center_x - 0.5 * furnace_w, furnace_center_x + 0.5 * furnace_w, \
-                         furnace_center_y - 0.5 * furnace_h, furnace_center_y + 0.5 * furnace_h
-            furnace = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
-            furnace.set_color(1.000, 0.843, 0.000) #gold
-            self.viewer.add_geom(furnace)
-
-        if self.state is None: return None
+            for furnace in self.state.furnaces:
+                l, r, b, t = furnace.location[0] - 0.5 * OBJECT_H, furnace.location[0] + 0.5 * OBJECT_W, \
+                             furnace.location[1] - 0.5 * OBJECT_H, furnace.location[1] + 0.5 * OBJECT_W
+                furnace = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
+                furnace.set_color(1.000, 0.843, 0.000) #gold
+                self.viewer.add_geom(furnace)
 
         return self.viewer.render(return_rgb_array = mode=='rgb_array')
 
     def close(self):
-        if self.viewer: self.viewer.close()
+        if self.viewer:
+            self.viewer.close()
+
+
+# stone = StoneFurnace()
+# state = State
+# state.iron_ore_count = 2
+# state.coal_ore_count = 10
+#
+# stone.add_resources(iron_ore=1., coal_ore=1.)
+# plate = stone.produce_one_iron_plate()
+#
+# print(rewards)
+#
+# print(plate)
+# print(stone.coal_ore, stone.iron_ore)
+
+
