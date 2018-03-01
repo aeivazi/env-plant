@@ -22,6 +22,13 @@ REWARDS = {
     'iron_plate': 2 * (np.sum(resources_for_iron_plate()))
 }
 
+LIMITS = {
+    'transport_belt': {'max_throughput': 13.33}
+}
+
+SCREEN_WIDTH_PIXELS = 100
+SCREEN_HEIGHT_PIXELS = 100
+
 SCREEN_WIDTH = 500
 SREEN_HEIGHT = 500
 
