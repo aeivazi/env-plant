@@ -15,12 +15,12 @@ n_timesteps = 10 #100
 for i_episode in range(n_episodes):
     env.reset()
 
-    for t in range(10):
+    for t in range(20):
 
         env.render()
 
         #choose a random action
-        action = (10, 10, 'N')
+        action = ((t, t), (0, 1))
 
         state, reward, done, info = env.step(action)
 

@@ -2,13 +2,19 @@ from env_plant.settings import resources_one_ts_iron_plate, RECIPES
 
 
 class StoneFurnace:
-    def __init__(self, location_x, location_y):
-        self.location = (location_x, location_y)
+    def __init__(self, location):
+        self.location = location
         self.ts_count = 0.0
 
         self.coal_ore = 0.0
         self.iron_ore = 0.0
         self.iron_plate = 0.0
+
+    def add_resource(self, item):
+        if item.type == 'coal_ore':
+            self.coal_ore += 1.
+        elif item.type == 'iron_ore':
+            self.iron_ore += 1.
 
     def produce_one_iron_plate(self):
         """
@@ -34,5 +40,5 @@ class StoneFurnace:
 
 
 class BurnerMiningDrill:
-    def __init__(self, location_x, location_y):
-        self.location = (location_x, location_y)
+    def __init__(self, location):
+        self.location = location

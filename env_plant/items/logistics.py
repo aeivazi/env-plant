@@ -1,5 +1,6 @@
 
-from env_plant.settings import LIMITS, SCREEN_WIDTH_PIXELS
+from env_plant.settings import LIMITS
+
 
 class TransportBelt:
     def __init__(self, location, orientation):
@@ -17,55 +18,9 @@ class TransportBelt:
 
         return True
 
-    def get_next_location(self):
+    def next_location(self):
 
         return self.location + self.orientation
-
-
-class Item:
-    def __init__(self):
-        self.belt = None
-
-
-class Conveyor:
-    """
-    Is a helper class for a list of TransportBelts
-    """
-    def __init__(self):
-        self.belts = {}
-        self.items = []
-
-    def add_belt(self, belt):
-        index = belt.location[0] + belt.location[1] * SCREEN_WIDTH_PIXELS
-        self.belts[index] = belt
-
-    def find_belt(self, location):
-
-        index = location[0] + location[1] * SCREEN_WIDTH_PIXELS
-
-        if index in self.belts:
-            return self.belts[index]
-
-        return None
-
-    def move_one_step(self):
-
-        for item in self.items:
-
-            next_belt = self.find_belt(item.belt.get_next_location())
-
-            if next_belt:
-
-                if not next_belt.has_free_place:
-                    continue
-
-                item.belt.current_items_number -= 1
-                next_belt.current_items_number += 1
-                item.belt = next_belt
-
-            else:
-                lkfdj
-
 
 
 
